@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CIPHER System Architecture</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            padding: 30px;
+        }
+        
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 25px;
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            border-radius: 10px;
+            border: 2px solid #3498db;
+        }
+        
+        .header h1 {
+            font-size: 36px;
+            color: #3498db;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+        }
+        
+        .header p {
+            font-size: 16px;
+            color: #95a5a6;
+        }
+        
+        .architecture-container {
+            display: grid;
+            grid-template-columns: 2fr 1fr 2fr;
+            grid-template-rows: auto auto auto auto;
+            gap: 25px;
+            position: relative;
+        }
+        
+        .layer-box {
+            background: #2c3e50;
+            border: 2px solid #34495e;
+            border-radius: 8px;
+            padding: 25px;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        
+        .layer-box:hover {
+            border-color: #3498db;
+            box-shadow: 0 0 20px rgba(52, 152, 219, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .layer-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #3498db;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #34495e;
+            text-transform: uppercase;
+        }
+        
+        .layer-content {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .component {
+            background: rgba(52, 73, 94, 0.5);
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 3px solid #3498db;
+        }
+        
+        .component-name {
+            font-weight: bold;
+            color: #ecf0f1;
+            margin-bottom: 8px;
+            font-size: 15px;
+        }
+        
+        .component-desc {
+            font-size: 13px;
+            color: #bdc3c7;
+            line-height: 1.6;
+            margin-bottom: 8px;
+        }
+        
+        .tech-stack {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+        }
+        
+        .tech-tag {
+            background: rgba(52, 152, 219, 0.2);
+            color: #3498db;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            border: 1px solid rgba(52, 152, 219, 0.4);
+            font-weight: 600;
+        }
+        
+        .connections {
+            color: #95a5a6;
+            font-size: 12px;
+            margin-top: 8px;
+            font-style: italic;
+        }
+        
+        .connections strong {
+            color: #e74c3c;
+        }
+        
+        /* Grid positioning */
+        .presentation-layer {
+            grid-column: 1;
+            grid-row: 1 / 3;
+        }
+        
+        .logic-layer {
+            grid-column: 3;
+            grid-row: 1 / 3;
+        }
+        
+        .realtime-layer {
+            grid-column: 1;
+            grid-row: 3;
+        }
+        
+        .data-layer {
+            grid-column: 3;
+            grid-row: 3;
+        }
+        
+        .connections-flow {
+            grid-column: 1 / 4;
+            grid-row: 4;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border: 1px solid #34495e;
+        }
+        
+        th {
+            background: #34495e;
+            color: #3498db;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        
+        tr:hover {
+            background: rgba(52, 152, 219, 0.1);
+        }
+        
+        .flow-arrow {
+            color: #e74c3c;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        
+        .highlight {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        
+        .code-inline {
+            background: rgba(231, 76, 60, 0.2);
+            color: #e74c3c;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        
+        .hybrid-badge {
+            display: inline-block;
+            background: #27ae60;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        .export-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: #3498db;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.4);
+            transition: all 0.3s ease;
+        }
+        
+        .export-btn:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(52, 152, 219, 0.6);
+        }
+        
+        @media print {
+            body {
+                background: white;
+                color: black;
+            }
+            .export-btn {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔐 CIPHER System Architecture</h1>
+            <p>Cybercrime Intelligence & Predictive Hotspot Engine for Response | SIH 2025</p>
+        </div>
+        
+        <div class="architecture-container">
+            <!-- I. PRESENTATION LAYER -->
+            <div class="layer-box presentation-layer">
+                <div class="layer-title">I. PRESENTATION LAYER (FRONTEND)</div>
+                <div class="layer-content">
+                    <div class="component">
+                        <div class="component-name">React/Vite Dashboard</div>
+                        <div class="component-desc">
+                            The user interface for Law Enforcement Agencies (LEAs). Renders the map, filters, and alert lists. Handles user interactions (filtering, view actions) and state management.
+                        </div>
+                        <div class="connections">
+                            <strong>→ Logic Layer (API):</strong> Sends HTTP/JSON requests for fetching Alerts and Hotspots, and POST requests for triggering Complaint Processing.<br>
+                            <strong>→ Real-Time Layer:</strong> Listens to the dedicated WebSocket channel for live updates.
+                        </div>
+                        <div class="tech-stack">
+                            <span class="tech-tag">React.js</span>
+                            <span class="tech-tag">Vite</span>
+                            <span class="tech-tag">Tailwind CSS</span>
+                            <span class="tech-tag">React-Leaflet/Leaflet</span>
+                        </div>
+                    </div>
+                    
+                    <div class="component">
+                        <div class="component-name">Map Display</div>
+                        <div class="component-desc">
+                            GIS-enabled component visualizing <span class="highlight">Reactive Alerts</span> (markers) and <span class="highlight">Proactive Hotspots</span> (risk heatmap circles).
+                        </div>
+                    </div>
+                    
+                    <div class="component">
+                        <div class="component-name">SideBar Filters</div>
+                        <div class="component-desc">
+                            Allows drill-down of displayed data by Priority Level and Time Range.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- II. LOGIC LAYER -->
+            <div class="layer-box logic-layer">
+                <div class="layer-title">II. LOGIC LAYER (BACKEND / HYBRID AI ENGINE)</div>
+                <div class="layer-content">
+                    <div class="component">
+                        <div class="component-name">FastAPI Main API</div>
+                        <div class="component-desc">
+                            Handles all routing, Pydantic validation, and dependency injection (DB Sessions).
+                        </div>
+                        <div class="connections">
+                            <strong>→ Presentation Layer:</strong> Responds with filtered JSON data (200 OK).<br>
+                            <strong>→ Data Layer:</strong> Executes CRUD operations.
+                        </div>
+                        <div class="tech-stack">
+                            <span class="tech-tag">Python</span>
+                            <span class="tech-tag">FastAPI</span>
+                            <span class="tech-tag">SQLAlchemy</span>
+                            <span class="tech-tag">Pydantic</span>
+                        </div>
+                    </div>
+                    
+                    <div class="component">
+                        <div class="component-name">Alert Aggregation <span class="hybrid-badge">Reactive Intelligence</span></div>
+                        <div class="component-desc">
+                            Background task (<span class="code-inline">/process-complaints</span>) that processes new complaints, aggregates by city, calculates immediate risk/priority, and generates a simple trend-based AI Insight.
+                        </div>
+                        <div class="connections">
+                            <strong>→ Data Layer:</strong> Fetches raw complaints and saves derived <span class="code-inline">alerts</span>.<br>
+                            <strong>→ Real-Time Layer:</strong> Triggers WebSocket broadcast for Critical Alerts.
+                        </div>
+                        <div class="tech-stack">
+                            <span class="tech-tag">Pandas (aggregation)</span>
+                        </div>
+                    </div>
+                    
+                    <div class="component">
+                        <div class="component-name">Predictive Engine <span class="hybrid-badge">Proactive Intelligence</span></div>
+                        <div class="component-desc">
+                            Loads the trained ML model (<span class="code-inline">text_risk_predictor.pkl</span>) and runs inference on historical data (last 30-90 days) to predict future fraud likelihood/hotspots.
+                        </div>
+                        <div class="connections">
+                            <strong>→ Data Layer:</strong> Reads historical data for feature engineering and prediction.
+                        </div>
+                        <div class="tech-stack">
+                            <span class="tech-tag">Joblib</span>
+                            <span class="tech-tag">Scikit-learn (ML)</span>
+                            <span class="tech-tag">Pandas</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- III. REAL-TIME LAYER -->
+            <div class="layer-box realtime-layer">
+                <div class="layer-title">III. REAL-TIME LAYER (WebSockets)</div>
+                <div class="layer-content">
+                    <div class="component">
+                        <div class="component-name">WebSocket Manager</div>
+                        <div class="component-desc">
+                            Manages persistent connections (<span class="code-inline">/ws/live</span>) to LEA dashboards. Pushes new Critical Alert payloads asynchronously.
+                        </div>
+                        <div class="connections">
+                            <strong>→ Presentation Layer:</strong> Pushes real-time alert updates for immediate display.<br>
+                            <strong>→ Logic Layer:</strong> Receives non-HTTP trigger from Alert Aggregation.
+                        </div>
+                        <div class="tech-stack">
+                            <span class="tech-tag">FastAPI WebSockets</span>
+                            <span class="tech-tag">Python asyncio</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- IV. DATA & STORAGE LAYER -->
+            <div class="layer-box data-layer">
+                <div class="layer-title">IV. DATA & STORAGE LAYER</div>
+                <div class="layer-content">
+                    <div class="component">
+                        <div class="component-name">PostgreSQL Database</div>
+                        <div class="component-desc">
+                            Stores normalized data: <span class="code-inline">complaints</span> (raw, translated text, financial details) and <span class="code-inline">alerts</span> (derived, aggregated risk summary).
+                        </div>
+                        <div class="connections">
+                            <strong>→ Logic Layer:</strong> Serves as the authoritative source for all data access (historical reads for ML, current reads for alerts, writes for new alerts).
+                        </div>
+                        <div class="tech-stack">
+                            <span class="tech-tag">PostgreSQL</span>
+                        </div>
+                    </div>
+                    
+                    <div class="component">
+                        <div class="component-name">Local Model Storage</div>
+                        <div class="component-desc">
+                            Directory (<span class="code-inline">/model</span>) used to store the serialized, pre-trained ML model (<span class="code-inline">text_risk_predictor.pkl</span>) used by the Predictive Engine.
+                        </div>
+                        <div class="connections">
+                            <strong>→ Logic Layer:</strong> Loaded at application startup by the Predictive Engine.
+                        </div>
+                        <div class="tech-stack">
+                            <span class="tech-tag">Joblib</span>
+                            <span class="tech-tag">Python</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- COMPLETE CONNECTIONS FLOW -->
+            <div class="layer-box connections-flow">
+                <div class="layer-title">Complete Connections Flow</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Flow Type</th>
+                            <th>Origin (User/System)</th>
+                            <th>Path / Action</th>
+                            <th>Destination</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Reactive Alert Display</strong></td>
+                            <td>Frontend (Map/Alerts)</td>
+                            <td><span class="code-inline">GET /api/alerts</span></td>
+                            <td>Backend (Alert Aggregation)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Proactive Hotspot Display</strong></td>
+                            <td>Frontend (Map)</td>
+                            <td><span class="code-inline">GET /api/hotspots</span></td>
+                            <td>Backend (Predictive Engine)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>ML Inference Data</strong></td>
+                            <td>Data Layer (PostgreSQL)</td>
+                            <td><span class="code-inline">SELECT Historical Data</span></td>
+                            <td>Logic Layer (Predictive Engine)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Alert Saving</strong></td>
+                            <td>Logic Layer (Alert Aggregation)</td>
+                            <td><span class="code-inline">INSERT/UPDATE</span></td>
+                            <td>Data Layer (PostgreSQL)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Real-Time Intervention</strong></td>
+                            <td>Logic Layer (Alert Aggregation)</td>
+                            <td><span class="code-inline">WebSocket Broadcast</span></td>
+                            <td>Presentation Layer</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="export-btn" onclick="window.print()">
+            📄 Export to PDF
+        </div>
+    </div>
+</body>
+</html>

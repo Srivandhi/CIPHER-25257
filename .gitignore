@@ -1,0 +1,30 @@
+# -------------------------
+# PYTHON / FASTAPI BACKEND
+# -------------------------
+
+# Python virtual environments (ignore ANY venv anywhere)
+venv/
+env/
+.venv/
+backend/venv/
+backend/env/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Testing and coverage
+.pytest_cache/
+.coverage
+
+# Database and Data Files
+/data/*.sqlite
+*.db
+*.log
+
+# ML Model Artifacts
+/model/*.pkl
+/model/*.joblib
+/model/*.h5
