@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import pickle
+from datetime import datetime
 
 BUNDLE_PATH = "cipher_ranker_bundle.pkl"
 ATM_MASTER_PATH = "cipher_atm_master.csv"
@@ -29,6 +30,23 @@ def encode_with_encoder(colname: str, series, encoders: dict):
 
 
 def predict_atm_risk(complaint: dict):
+    # -------- 0. Handle / normalize complaint timestamp ----------
+    # allow complaint_timestamp in dict, else use "now"
+    ts_str = complaint.get("complaint_timestamp")
+    if ts_str is None:
+        ts = datetime.now()
+    else:
+        # try to parse, otherwise just keep raw string
+        try:
+            ts = pd.to_datetime(ts_str)
+        except Exception:
+            ts = ts_str  # keep as string
+    # also store a nice display string
+    if isinstance(ts, (pd.Timestamp, datetime)):
+        ts_display = ts.strftime("%d-%b-%Y %H:%M")
+    else:
+        ts_display = str(ts)
+
     # --- Load ATM master ---
     print(f"[LOAD] ATM master from {ATM_MASTER_PATH} ...")
     atm_df = pd.read_csv(ATM_MASTER_PATH)
@@ -51,6 +69,9 @@ def predict_atm_risk(complaint: dict):
     # --- Build full candidate set: one row per ATM for this complaint ---
     n_atm = len(atm_df)
     comp_df = pd.DataFrame([complaint] * n_atm)
+
+    # attach normalized timestamp fields if you want later
+    comp_df["complaint_timestamp"] = ts_display
 
     full_df = pd.concat(
         [comp_df.reset_index(drop=True), atm_df.reset_index(drop=True)],
@@ -111,8 +132,23 @@ def predict_atm_risk(complaint: dict):
 
     full_df["risk_class"] = full_df["rank_order"].apply(classify_rank)
 
-    # === If you only want the TOP 20 for dashboard, uncomment: ===
-    # full_df = full_df.head(20)
+    # --- Build complaint_text including timestamp (for UI alerts) ---
+    # (same text repeated for each row; frontend can just use the first row)
+    full_df["complaint_text"] = (
+        "Complaint received on "
+        + full_df["complaint_timestamp"].astype(str)
+        + " from "
+        + full_df["victim_village"].astype(str)
+        + ", "
+        + full_df["victim_taluka"].astype(str)
+        + ", "
+        + full_df["victim_district"].astype(str)
+        + ". Fraud type: "
+        + full_df["fraud_type"].astype(str)
+        + ", Bank: "
+        + full_df["bank_name"].astype(str)
+        + "."
+    )
 
     result = full_df[[
         "atm_id",
@@ -123,42 +159,46 @@ def predict_atm_risk(complaint: dict):
         "risk_score_raw",
         "risk_score_norm",
         "risk_class",
+        "atm_total_complaints",
+        "atm_avg_loss",
         "rank_order",
+        "complaint_timestamp",
+        "complaint_text",
     ]]
 
     return result
 
 
 if __name__ == "__main__":
+
     # Example complaint (plug real complaint data here)
     complaint_example = {
-    "victim_state": "Maharashtra",
-    "victim_district": "Aurangabad",
-    "victim_taluka": "Khuldabad",
-    "victim_village": "Bajarwadi",
-    "victim_pincode": 431101,
-    "victim_rural_urban": "Rural",
-    "victim_lat": 20.0085,
-    "victim_lon": 75.1892,
-    "channel": "NCRP",
-    "fraud_type": "OTP Fraud",
-    "bank_name": "BoB",
-    "reported_loss_amount": 28450.00,
-    "num_transactions": 4,
-    "device_type": "Android",
-    "is_otp_shared": 1,
-    "clicked_malicious_link": 0,
-    "urgency_score": 0.91,
-    "account_age_months": 18,
-    "prior_complaints_same_upi": 0,
-    "linked_fraud_ring": "Ring_B",
-}
-
+        "complaint_timestamp": "2025-10-03 13:55:00",   # <--- NEW
+        "victim_state": "Maharashtra",
+        "victim_district": "Aurangabad",
+        "victim_taluka": "Khuldabad",
+        "victim_village": "Bajarwadi",
+        "victim_pincode": 431101,
+        "victim_rural_urban": "Rural",
+        "victim_lat": 20.0085,
+        "victim_lon": 75.1892,
+        "channel": "NCRP",
+        "fraud_type": "OTP Fraud",
+        "bank_name": "BoB",
+        "reported_loss_amount": 28450.00,
+        "num_transactions": 4,
+        "device_type": "Android",
+        "is_otp_shared": 1,
+        "clicked_malicious_link": 0,
+        "urgency_score": 0.91,
+        "account_age_months": 18,
+        "prior_complaints_same_upi": 0,
+        "linked_fraud_ring": "Ring_B",
+    }
 
     df_pred = predict_atm_risk(complaint_example)
 
     print("\n====== TOP 10 PREDICTED ATMs ======")
     print(df_pred.head(10))
-
-    df_pred.to_csv("prediction_output.csv", index=False)
+    df_pred.to_csv("prediction_output.csv",index = False)
     print("\n[SAVED] prediction_output.csv")

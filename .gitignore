@@ -28,3 +28,6 @@ __pycache__/
 /model/*.pkl
 /model/*.joblib
 /model/*.h5
+
+
+*.csv
