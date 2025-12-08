@@ -15,3 +15,8 @@ export async function fetchAtmHotspotsForComplaint(complaint) {
   );
   return res.data; // { [complaint_id]: [ATMRisk, ...] }
 }
+
+export async function fetchAllComplaints() {
+  const res = await axios.get(`${API_BASE_URL}/api/complaints`);
+  return res.data;
+}

@@ -22,9 +22,11 @@ export default function CipherDashboard() {
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [isLive, setIsLive] = useState(false);
   const [priorityFilter, setPriorityFilter] = useState({
+    "Very Critical": true,
     Critical: true,
     High: true,
     Medium: true,
+    Low: true,
   });
 
   // If opened directly without a complaint, go back to login

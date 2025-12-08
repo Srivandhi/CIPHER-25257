@@ -24,21 +24,20 @@ const EyeIcon = () => (
 
 export default function AlertItem({ alert, onView }) {
   const priorityStyles = {
-  "Very Critical": "bg-red-600/80 text-red-100",
-  Critical: "bg-red-500/80 text-red-100",
-  High: "bg-orange-500/80 text-orange-100",
-  Medium: "bg-yellow-500/80 text-yellow-100",
-  Low: "bg-green-500/80 text-green-100",   // ✅ change from gray to green
-};
+    "Very Critical": "bg-red-600/80 text-red-100",
+    Critical: "bg-orange-500/80 text-orange-100",
+    High: "bg-yellow-500/80 text-yellow-100",
+    Medium: "bg-lime-500/80 text-lime-100",
+    Low: "bg-green-500/80 text-green-100",
+  };
 
   return (
     <div className="p-4 bg-white/5 hover:bg-white/10 rounded-lg transition-colors duration-200 text-sm">
       <div className="grid grid-cols-[1fr_2fr_1fr_1fr_1fr_auto] items-center gap-4">
         {/* risk class */}
         <div
-          className={`font-bold px-3 py-1 rounded-md text-center text-xs ${
-            priorityStyles[alert.priority] || "bg-slate-500/80"
-          }`}
+          className={`font-bold px-3 py-1 rounded-md text-center text-xs ${priorityStyles[alert.priority] || "bg-slate-500/80"
+            }`}
         >
           {alert.priority}
         </div>

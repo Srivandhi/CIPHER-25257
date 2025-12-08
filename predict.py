@@ -47,14 +47,35 @@ def predict_atm_risk(complaint: dict):
     else:
         ts_display = str(ts)
 
-    # --- Load ATM master ---
-    print(f"[LOAD] ATM master from {ATM_MASTER_PATH} ...")
-    atm_df = pd.read_csv(ATM_MASTER_PATH)
+    # --- Load ATM master from DB ---
+    print(f"[LOAD] ATM master from PostgreSQL ...")
+    from backend.database import engine
+    from backend.models import ATM
+    
+    # Read entire ATM table
+    # Columns in DB match CSV structure: suspected_atm_lat, suspected_atm_lon, etc.
+    atm_df = pd.read_sql("SELECT * FROM atms", engine)
     print("[INFO] ATM count:", len(atm_df))
 
+    # Rename columns to match what the model and logic expects
+    atm_df = atm_df.rename(columns={
+        "suspected_atm_index": "atm_id",
+        "suspected_atm_lat": "atm_lat",
+        "suspected_atm_lon": "atm_lon",
+        "suspected_atm_name": "atm_name",
+        "suspected_atm_place": "atm_place"
+    })
+    
+    # Cast to correct types to avoid 'object' dtype (Decimal)
+    atm_df["atm_id"] = pd.to_numeric(atm_df["atm_id"], errors='coerce').fillna(0).astype(int)
+    atm_df["atm_lat"] = pd.to_numeric(atm_df["atm_lat"], errors='coerce').astype(float)
+    atm_df["atm_lon"] = pd.to_numeric(atm_df["atm_lon"], errors='coerce').astype(float)
+    atm_df["atm_total_complaints"] = pd.to_numeric(atm_df["atm_total_complaints"], errors='coerce').fillna(0).astype(int)
+    atm_df["atm_avg_loss"] = pd.to_numeric(atm_df["atm_avg_loss"], errors='coerce').astype(float)
+
     # Nice display columns (kept separate from encoded cols)
-    atm_df["atm_name_display"] = atm_df["suspected_atm_name"]
-    atm_df["atm_place_display"] = atm_df["suspected_atm_place"]
+    atm_df["atm_name_display"] = atm_df["atm_name"]
+    atm_df["atm_place_display"] = atm_df["atm_place"]
 
     # --- Load model bundle ---
     print(f"[LOAD] Bundle from {BUNDLE_PATH} ...")
@@ -88,8 +109,8 @@ def predict_atm_risk(complaint: dict):
         ):
             # rough Euclidean distance in km
             full_df["victim_atm_distance_km"] = np.sqrt(
-                (full_df["victim_lat"] - full_df["atm_lat"]) ** 2
-                + (full_df["victim_lon"] - full_df["atm_lon"]) ** 2
+                (full_df["victim_lat"].astype(float) - full_df["atm_lat"].astype(float)) ** 2
+                + (full_df["victim_lon"].astype(float) - full_df["atm_lon"].astype(float)) ** 2
             ) * 111.0
         else:
             full_df["victim_atm_distance_km"] = 0.0
@@ -102,6 +123,17 @@ def predict_atm_risk(complaint: dict):
     # --- Select features in correct order ---
     used_feature_cols = [c for c in feature_cols if c in full_df.columns]
     print("[INFO] Using", len(used_feature_cols), "features at prediction:")
+    
+    missing_cols = set(feature_cols) - set(full_df.columns)
+    if missing_cols:
+        print(f"[WARNING] The following {len(missing_cols)} features are MISSING from data: {missing_cols}")
+        # Add them as 0 to avoid crash?
+        for c in missing_cols:
+             full_df[c] = 0.0
+        print("[INFO] Filled missing features with 0.0")
+        
+        # Re-select to include filled ones
+        used_feature_cols = [c for c in feature_cols if c in full_df.columns]
 
     X = full_df[used_feature_cols]
 
@@ -120,17 +152,51 @@ def predict_atm_risk(complaint: dict):
     full_df = full_df.sort_values("risk_score_raw", ascending=False).reset_index(drop=True)
     full_df["rank_order"] = full_df.index + 1  # 1,2,3,...
 
-    def classify_rank(r):
-        if r <= 3:
-            return "Critical"
+    # Hybrid Approach: Classify by Rank, then Assign Score within Range
+    # This ensures the Top 25 list shows a diversity of Risk Levels as per user requirement.
+    def classify_and_score(row):
+        r = row["rank_order"]
+        # Ranges:
+        # Very Critical: 0.9 - 1.0 (Top 1-5)
+        # Critical:      0.8 - 0.9 (Top 6-10)
+        # High:          0.7 - 0.8 (Top 11-15)
+        # Medium:        0.6 - 0.7 (Top 16-20)
+        # Low:           0.5 - 0.6 (Top 21-25)
+        
+        if r <= 5:
+            # Map 1-5 linearly to 0.99 - 0.91
+            # 1 -> 0.99, 5 -> 0.91
+            # score = 1.01 - (r * 0.02)
+            score = 1.0 - (r / 50.0) # 1->0.98, 5->0.90
+            # Let's use simple interpolation for cleaner code if needed, but this is fine.
+            # 0.9 + (5-r+1)*0.018 roughly
+            val = 0.9 + ((6-r)/5.0)*0.09 
+            return "Very Critical", min(val, 0.99)
         elif r <= 10:
-            return "High"
+            # 0.8 - 0.9
+            # 6->0.89, 10->0.81
+            val = 0.8 + ((11-r)/5.0)*0.09
+            return "Critical", val
+        elif r <= 15:
+            # 0.7 - 0.8
+            val = 0.7 + ((16-r)/5.0)*0.09
+            return "High", val
         elif r <= 20:
-            return "Medium"
+            # 0.6 - 0.7
+            val = 0.6 + ((21-r)/5.0)*0.09
+            return "Medium", val
+        elif r <= 25:
+            # 0.5 - 0.6
+            val = 0.5 + ((26-r)/5.0)*0.09
+            return "Low", val
         else:
-            return "Low"
+            # Fallback for > 25 (Low/Safe)
+            return "Low", 0.4
 
-    full_df["risk_class"] = full_df["rank_order"].apply(classify_rank)
+    # Apply valid logic
+    res = full_df.apply(classify_and_score, axis=1, result_type='expand')
+    full_df["risk_class"] = res[0]
+    full_df["risk_score_norm"] = res[1]
 
     # --- Build complaint_text including timestamp (for UI alerts) ---
     # (same text repeated for each row; frontend can just use the first row)
