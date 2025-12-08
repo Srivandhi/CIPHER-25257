@@ -1,3 +1,4 @@
+# backend/main.py
 from pydantic import BaseModel
 from typing import List, Dict, Any
 from datetime import datetime
@@ -6,8 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 import pandas as pd
-from predict import predict_atm_risk
- # your function from predict.py
+from predict import predict_atm_risk  # your function from predict.py
 
 app = FastAPI(title="CIPHER ATM Risk API")
 
@@ -21,6 +21,7 @@ app.add_middleware(
 )
 
 # ------- Pydantic models ---------
+
 
 class Complaint(BaseModel):
     complaint_id: str
@@ -78,17 +79,26 @@ class ATMRisk(BaseModel):
 #   ]
 # }
 
+
 @app.post("/api/complaints/atm-hotspots", response_model=Dict[str, List[ATMRisk]])
 def get_atm_hotspots(complaint: Complaint):
     """
-    Given a complaint, return TOP 10 ranked ATM hotspots in the format required
+    Given a complaint, return TOP 25 ranked ATM hotspots in the format required
     by the management layer -> control layer JSON.
     """
     # run model
     df: pd.DataFrame = predict_atm_risk(complaint.dict())
 
-    # keep only top 10
-    df = df.sort_values("risk_score_raw", ascending=False).head(10).reset_index(drop=True)
+    # keep TOP 25
+    TOP_K = 25
+    df = (
+        df.sort_values("risk_score_raw", ascending=False)
+        .head(TOP_K)
+        .reset_index(drop=True)
+    )
+
+    # DEBUG: confirm how many rows we are actually returning
+    print(f"[DEBUG] Returning {len(df)} ATM hotspots for complaint {complaint.complaint_id}")
 
     # build list of ATMRisk dicts
     hotspots: List[Dict[str, Any]] = []

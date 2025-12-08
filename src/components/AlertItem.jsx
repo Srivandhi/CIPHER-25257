@@ -24,10 +24,12 @@ const EyeIcon = () => (
 
 export default function AlertItem({ alert, onView }) {
   const priorityStyles = {
-    Critical: "bg-red-500/80 text-red-100",
-    High: "bg-orange-500/80 text-orange-100",
-    Medium: "bg-yellow-500/80 text-yellow-100",
-  };
+  "Very Critical": "bg-red-600/80 text-red-100",
+  Critical: "bg-red-500/80 text-red-100",
+  High: "bg-orange-500/80 text-orange-100",
+  Medium: "bg-yellow-500/80 text-yellow-100",
+  Low: "bg-green-500/80 text-green-100",   // ✅ change from gray to green
+};
 
   return (
     <div className="p-4 bg-white/5 hover:bg-white/10 rounded-lg transition-colors duration-200 text-sm">
