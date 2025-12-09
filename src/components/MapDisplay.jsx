@@ -10,7 +10,7 @@ export default function MapDisplay({ alerts }) {
   const heatLayerRef = useRef(null);
   const [mode, setMode] = useState("pins"); // "pins" | "heatmap"
 
-  const initialCenter = [19.7515, 75.7139]; // Maharashtra
+  const initialCenter = [19.7515, 75.7139]; // Maharashtra (Precise Geographic Center)
   const initialZoom = 7;
 
   // --- MapControls: capture leaflet map instance ---
@@ -22,15 +22,21 @@ export default function MapDisplay({ alerts }) {
 
   // --- Marker Icon styling ---
   const createCustomIcon = (color) => {
-    const markerHtml =
-      `<span style="background-color: ${color}; width: 2rem; height: 2rem; ` +
-      `border-radius: 50% 50% 50% 0; border: 2px solid white; display: block; transform: rotate(-45deg);"></span>`;
+    // Sleek thin SVG pin
+    // Path creates a narrower head (radius ~5.5) and longer tail
+    const markerHtml = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="100%" height="100%" style="filter: drop-shadow(1px 2px 3px rgba(0,0,0,0.4)); overflow: visible;">
+        <path d="M12 1c-4 0-7 3-7 7 0 5 7 15 7 15s7-10 7-15c0-4-3-7-7-7z" fill="${color}" stroke="rgba(0,0,0,0.8)" stroke-width="1"/>
+        <circle cx="12" cy="8" r="2.5" fill="rgba(255,255,255,0.9)"/>
+      </svg>
+    `;
+
     return L.divIcon({
       html: markerHtml,
-      className: "bg-transparent",
-      iconSize: [32, 32],
-      iconAnchor: [16, 32],
-      popupAnchor: [0, -32],
+      className: "bg-transparent marker-pin-icon",
+      iconSize: [28, 40], // Thinner aspect ratio
+      iconAnchor: [14, 40], // Tip is at bottom center
+      popupAnchor: [0, -40],
     });
   };
 
@@ -44,14 +50,16 @@ export default function MapDisplay({ alerts }) {
   };
 
   // --- Fit map to all ATM points when alerts change ---
-  useEffect(() => {
-    if (!mapRef.current || alerts.length === 0) return;
-
-    const bounds = L.latLngBounds(
-      alerts.map((a) => L.latLng(a.position[0], a.position[1]))
-    );
-    mapRef.current.fitBounds(bounds, { padding: [60, 60] });
-  }, [alerts]);
+  // --- Fit map to all ATM points when alerts change ---
+  // DISABLED: User wants to stay focused on Maharashtra by default
+  // useEffect(() => {
+  //   if (!mapRef.current || alerts.length === 0) return;
+  // 
+  //   const bounds = L.latLngBounds(
+  //     alerts.map((a) => L.latLng(a.position[0], a.position[1]))
+  //   );
+  //   mapRef.current.fitBounds(bounds, { padding: [60, 60] });
+  // }, [alerts]);
 
   // --- Heatmap effect ---
   useEffect(() => {
@@ -151,21 +159,19 @@ export default function MapDisplay({ alerts }) {
       <div className="absolute top-4 left-4 z-[1000] flex bg-black/60 rounded-full p-1">
         <button
           onClick={() => setMode("pins")}
-          className={`px-4 py-1 rounded-full text-sm font-semibold ${
-            mode === "pins"
-              ? "bg-white text-slate-900"
-              : "bg-transparent text-white"
-          }`}
+          className={`px-4 py-1 rounded-full text-sm font-semibold ${mode === "pins"
+            ? "bg-white text-slate-900"
+            : "bg-transparent text-white"
+            }`}
         >
           Pins
         </button>
         <button
           onClick={() => setMode("heatmap")}
-          className={`px-4 py-1 rounded-full text-sm font-semibold ${
-            mode === "heatmap"
-              ? "bg-blue-500 text-white"
-              : "bg-transparent text-white"
-          }`}
+          className={`px-4 py-1 rounded-full text-sm font-semibold ${mode === "heatmap"
+            ? "bg-blue-500 text-white"
+            : "bg-transparent text-white"
+            }`}
         >
           Heatmap
         </button>

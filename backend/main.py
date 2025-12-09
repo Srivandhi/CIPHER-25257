@@ -1,5 +1,6 @@
+
 # backend/main.py
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import List, Dict, Any
 from datetime import datetime
 
@@ -12,6 +13,10 @@ import numpy as np
 from predict import predict_atm_risk  # your function from predict.py
 from backend.database import get_db, engine, Base
 from backend.models import Complaint as DBComplaint, ATM
+
+# History API
+from backend.history_database import SessionHistory
+from backend.history_models import HistoryComplaint
 
 # Create tables on startup (if not already)
 Base.metadata.create_all(bind=engine)
@@ -27,7 +32,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ------- Pydantic models ---------
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    print(f"VALIDATION ERROR: {exc}")
+    with open("C:/Users/SRIVANDHI/CIPHER/CIPHER-25257/debug_val_error.log", "a") as f:
+        f.write(f"Validation Error: {exc}\nBody: {exc.body}\n")
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors(), "body": str(exc.body)},
+    )
 
 class Complaint(BaseModel):
     complaint_id: str
@@ -39,19 +55,33 @@ class Complaint(BaseModel):
     victim_rural_urban: str
     victim_lat: float
     victim_lon: float
-    channel: str
-    fraud_type: str
-    bank_name: str
+    channel: str = "Unknown"
+    fraud_type: str = "Unknown"
+    bank_name: str = "Unknown"
     reported_loss_amount: float
     num_transactions: int
-    device_type: str
+    device_type: str = "Unknown"
     is_otp_shared: int
     clicked_malicious_link: int
-    urgency_score: float
+    urgency_score: float = 3.4
     account_age_months: int
-    prior_complaints_same_upi: int
-    linked_fraud_ring: str
-    time_of_complaint: datetime
+    prior_complaints_same_upi: int = 2
+    linked_fraud_ring: str = "None"
+    time_of_complaint: datetime = None
+
+    @field_validator('victim_pincode', 'num_transactions', 'account_age_months', 'prior_complaints_same_upi', 'is_otp_shared', 'clicked_malicious_link', mode='before')
+    @classmethod
+    def sanitize_int(cls, v):
+        if v == "" or v is None:
+            return 0
+        return int(float(v)) # handle "12.0" strings too
+
+    @field_validator('victim_lat', 'victim_lon', 'reported_loss_amount', 'urgency_score', mode='before')
+    @classmethod
+    def sanitize_float(cls, v):
+        if v == "" or v is None:
+            return 0.0
+        return float(v)
 
     class Config:
         from_attributes = True
@@ -79,22 +109,39 @@ class ATMRisk(BaseModel):
 @app.get("/api/complaints", response_model=List[Complaint])
 def read_complaints(db: Session = Depends(get_db)):
     """Fetch all complaints from PostgreSQL"""
+    print("[DEBUG] Fetching complaints from DB...")
     complaints = db.query(DBComplaint).all()
-    # Map DB -> Pydantic
-    # DB has complaint_timestamp, Pydantic has time_of_complaint
-    # We can use list comp or rely on orm_mode if fields match.
-    # Fields do match MOSTLY, except time_of_complaint vs complaint_timestamp.
-    # I should align them or map them.
-    # Existing Pydantic: time_of_complaint
-    # DB: complaint_timestamp
+    print(f"[DEBUG] Found {len(complaints)} complaints")
     
-    # I'll manually map to be safe and compatible with frontend expected Pydantic shape
     result = []
     for c in complaints:
-        c_dict = c.__dict__
-        # Pydantic expects time_of_complaint
-        c_dict['time_of_complaint'] = c.complaint_timestamp
+        # Create a safe copy of data mapped to Pydantic schema
+        c_dict = {
+            "complaint_id": c.complaint_id,
+            "victim_state": c.victim_state,
+            "victim_district": c.victim_district,
+            "victim_taluka": c.victim_taluka,
+            "victim_village": c.victim_village,
+            "victim_pincode": c.victim_pincode,
+            "victim_rural_urban": c.victim_rural_urban,
+            "victim_lat": c.victim_lat,
+            "victim_lon": c.victim_lon,
+            "channel": c.channel,
+            "fraud_type": c.fraud_type,
+            "bank_name": c.bank_name,
+            "reported_loss_amount": c.reported_loss_amount,
+            "num_transactions": c.num_transactions,
+            "device_type": c.device_type,
+            "is_otp_shared": c.is_otp_shared,
+            "clicked_malicious_link": c.clicked_malicious_link,
+            "urgency_score": c.urgency_score,
+            "account_age_months": c.account_age_months,
+            "prior_complaints_same_upi": c.prior_complaints_same_upi,
+            "linked_fraud_ring": c.linked_fraud_ring,
+            "time_of_complaint": c.complaint_timestamp
+        }
         result.append(c_dict)
+    
     return result
 
 @app.post("/api/complaints", response_model=Complaint)
@@ -136,30 +183,32 @@ def get_atm_hotspots(complaint: Complaint, db: Session = Depends(get_db)):
             pass # Already exists
         else:
             comp_data = complaint.dict()
-            comp_data['complaint_timestamp'] = comp_data.pop('time_of_complaint')
+            comp_data['complaint_timestamp'] = comp_data.pop('time_of_complaint', None)
+            if not comp_data['complaint_timestamp']:
+                comp_data['complaint_timestamp'] = datetime.now()
             new_comp = DBComplaint(**comp_data)
             db.add(new_comp)
             db.commit()
     except Exception as e:
         import traceback
-        with open("server_error.log", "a") as f:
+        with open("C:/Users/SRIVANDHI/CIPHER/CIPHER-25257/debug_err.log", "a") as f:
             f.write(f"Upsert Error: {e}\n{traceback.format_exc()}\n")
+        print(f"Upsert Error: {e}")
         raise e
 
     try:
         # 2. Run model
-        # predict_atm_risk reads ATMs from DB (via engine inside predict.py)
-        # It expects a dict with 'complaint_timestamp' key potentially?
-        # predict.py: ts_str = complaint.get("complaint_timestamp")
-        # Pydantic has time_of_complaint.
-        
         c_dict = complaint.dict()
-        c_dict['complaint_timestamp'] = c_dict.get('time_of_complaint') # ensure key exists
+        # Robustly handle timestamp
+        ts = c_dict.get('time_of_complaint')
+        if not ts:
+            ts = datetime.now()
+        c_dict['complaint_timestamp'] = ts
         
         df: pd.DataFrame = predict_atm_risk(c_dict)
 
-        # keep TOP 25
-        TOP_K = 25
+        # keep TOP 50
+        TOP_K = 50
         df = (
             df.sort_values("risk_score_raw", ascending=False)
             .head(TOP_K)
@@ -204,7 +253,7 @@ def get_atm_hotspots(complaint: Complaint, db: Session = Depends(get_db)):
 
                     # meta
                     "complaint_id": complaint.complaint_id,
-                    "time_of_complaint": complaint.time_of_complaint,
+                    "time_of_complaint": c_dict['complaint_timestamp'],
                 }
             )
 
@@ -213,57 +262,28 @@ def get_atm_hotspots(complaint: Complaint, db: Session = Depends(get_db)):
         
     except Exception as e:
         import traceback
-        with open("server_error.log", "a") as f:
+        with open("C:/Users/SRIVANDHI/CIPHER/CIPHER-25257/debug_err.log", "a") as f:
             f.write(f"Prediction Error: {e}\n{traceback.format_exc()}\n")
+        print(f"Prediction Error: {e}")
         raise e
-    # predict_atm_risk reads ATMs from DB (via engine inside predict.py)
-    # It expects a dict with 'complaint_timestamp' key potentially?
-    # predict.py: ts_str = complaint.get("complaint_timestamp")
-    # Pydantic has time_of_complaint.
-    # I should pass dict with 'complaint_timestamp'
-    
-    c_dict = complaint.dict()
-    c_dict['complaint_timestamp'] = c_dict.get('time_of_complaint') # ensure key exists
-    
-    df: pd.DataFrame = predict_atm_risk(c_dict)
 
-    # keep TOP 25
-    TOP_K = 25
-    df = (
-        df.sort_values("risk_score_raw", ascending=False)
-        .head(TOP_K)
-        .reset_index(drop=True)
-    )
+def get_history_db():
+    db = SessionHistory()
+    try:
+        yield db
+    finally:
+        db.close()
 
-    # DEBUG: confirm how many rows we are actually returning
-    print(f"[DEBUG] Returning {len(df)} ATM hotspots for complaint {complaint.complaint_id}")
-
-    # build list of ATMRisk dicts
-    hotspots: List[Dict[str, Any]] = []
-    for _, row in df.iterrows():
-        hotspots.append(
-            {
-                "atm_id": int(row["atm_id"]),
-                "atm_name": row["atm_name_display"],
-                "lat": float(row["atm_lat"]) if pd.notnull(row["atm_lat"]) else 0.0,
-                "lon": float(row["atm_lon"]) if pd.notnull(row["atm_lon"]) else 0.0,
-                "risk_score": float(row["risk_score_raw"]) if pd.notnull(row["risk_score_raw"]) and np.isfinite(row["risk_score_raw"]) else 0.0,
-                "risk_score_norm": float(row["risk_score_norm"]) if pd.notnull(row["risk_score_norm"]) and np.isfinite(row["risk_score_norm"]) else 0.0,
-                "risk_class": row["risk_class"],
-                "rank": int(row["rank_order"]),
-
-                # from complaint / ATM master
-                "fraud_type": complaint.fraud_type,
-                "suspected_atm_place": row["atm_place_display"],
-                "total_complaints": int(row["atm_total_complaints"]),
-                "bank_name": complaint.bank_name,
-                "estimated_loss": float(row["atm_avg_loss"]) if pd.notnull(row["atm_avg_loss"]) else 0.0,
-
-                # meta
-                "complaint_id": complaint.complaint_id,
-                "time_of_complaint": complaint.time_of_complaint,
-            }
-        )
-
-    # { complaint_id: [ {...}, {...} ] }
-    return {complaint.complaint_id: hotspots}
+@app.get("/api/history")
+def get_history_complaints(db: Session = Depends(get_history_db)):
+    complaints = db.query(HistoryComplaint).all()
+    # Manual serialization to handle datetime and status
+    res = []
+    for c in complaints:
+        d = c.__dict__.copy()
+        if "_sa_instance_state" in d:
+            del d["_sa_instance_state"]
+        # map complaint_timestamp to time_of_complaint if frontend expects it
+        d['time_of_complaint'] = d.get('complaint_timestamp')
+        res.append(d)
+    return res

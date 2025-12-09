@@ -49,11 +49,20 @@ export default function AlertDetailModal({ alert, onClose }) {
   const handleAction = async (actionType) => {
     setIsSubmitting(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      console.log(`Action ${actionType} executed for alert ${alert.id}`);
+      if (actionType === "Forward") {
+        // Import the service dynamically to avoid circular dependencies
+        const { forwardAlertToBank } = await import("../services/bankAlertService");
+        await forwardAlertToBank(alert);
+        console.log(`Alert ${alert.id} forwarded to bank successfully`);
+        alert("✅ Alert successfully forwarded to bank!");
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        console.log(`Action ${actionType} executed for alert ${alert.id}`);
+      }
       onClose();
     } catch (err) {
-      console.error(err);
+      console.error("Error executing action:", err);
+      alert("❌ Failed to forward alert. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -66,9 +75,8 @@ export default function AlertDetailModal({ alert, onClose }) {
         <header className="flex items-center justify-between p-4 border-b border-blue-900/50">
           <div className="flex items-center gap-4">
             <div
-              className={`font-bold px-4 py-1.5 rounded-md text-sm ${
-                priorityStyles[alert.priority] || "bg-slate-500/80"
-              }`}
+              className={`font-bold px-4 py-1.5 rounded-md text-sm ${priorityStyles[alert.priority] || "bg-slate-500/80"
+                }`}
             >
               {alert.priority} Alert
             </div>

@@ -3,24 +3,24 @@ import React from "react";
 
 const FilterIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
-       viewBox="0 0 24 24" fill="none" stroke="currentColor"
-       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
   </svg>
 );
 
 const WarningIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
-       viewBox="0 0 24 24" fill="none" stroke="currentColor"
-       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-       className="text-yellow-400">
+    viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+    className="text-yellow-400">
     <path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
     <line x1="12" y1="9" x2="12" y2="13" />
     <line x1="12" y1="17" x2="12.01" y2="17" />
   </svg>
 );
 
-export default function Sidebar({ priorityFilter, setPriorityFilter }) {
+export default function Sidebar({ priorityFilter, setPriorityFilter, fraudTypeFilter, setFraudTypeFilter }) {
   // 🔥 Risk levels with clear red→green progression
   const riskLevels = [
     {
@@ -63,6 +63,14 @@ export default function Sidebar({ priorityFilter, setPriorityFilter }) {
     }));
   };
 
+  const handleFraudTypeChange = (e) => {
+    const { name, checked } = e.target;
+    setFraudTypeFilter((prev) => ({
+      ...prev,
+      [name]: checked,
+    }));
+  };
+
   return (
     <aside className="bg-gradient-to-b from-[#031833] to-[#0b4a8b] text-white p-6 flex flex-col gap-8 overflow-y-auto">
       {/* HEADER + FILTERS */}
@@ -73,7 +81,7 @@ export default function Sidebar({ priorityFilter, setPriorityFilter }) {
         </div>
 
         {/* RISK LEVEL FILTER */}
-        <div>
+        <div className="mb-6">
           <h3 className="text-sm font-semibold mb-4 uppercase tracking-wide">
             Risk Level (Score Band)
           </h3>
@@ -113,6 +121,8 @@ export default function Sidebar({ priorityFilter, setPriorityFilter }) {
             ))}
           </div>
         </div>
+
+
       </div>
 
       {/* OVERVIEW (you can keep or tweak numbers) */}

@@ -1,5 +1,5 @@
 // src/components/Header.jsx
-import React from "react";
+import React, { useState, useEffect } from "react";
 
 const LiveIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-red-500">
@@ -30,28 +30,47 @@ const BellIcon = () => (
   </svg>
 );
 
-export default function Header({ isLive, onLiveToggle }) {
+export default function Header({ isLive, onLiveToggle, complaintStatus }) {
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   return (
     <header className="bg-gradient-to-b from-[#032042] to-[#0951a8] text-white flex items-center justify-between px-6 py-4 shadow-lg">
       <div className="flex items-center gap-4">
-        <img src="https://img.icons8.com/fluency/48/cyber-security.png" alt="Logo" className="h-10 w-10" />
-        <h1 className="text-2xl font-bold tracking-wide">Cybercrime Predictive Dashboard</h1>
+        {/* Updated Icon to Shield as per previous requests */}
+        <div style={{ fontSize: '32px' }}>🛡️</div>
+        <div>
+          <h1 className="text-2xl font-bold tracking-wide">Cybercrime Predictive Dashboard</h1>
+          {isLive && complaintStatus && (
+            <div className="text-xs font-mono text-cyan-300 mt-1">
+              CASE STATUS: <span className="font-bold text-white bg-blue-600 px-2 py-0.5 rounded">{complaintStatus}</span>
+            </div>
+          )}
+        </div>
       </div>
 
       <div
         onClick={onLiveToggle}
-        className={`flex items-center gap-4 px-4 py-2 rounded-lg cursor-pointer transition-colors ${
-          isLive ? "bg-red-600 animate-pulse" : "bg-black bg-opacity-20"
-        }`}
+        className={`flex items-center gap-4 px-4 py-2 rounded-lg cursor-pointer transition-colors ${isLive ? "bg-red-600 animate-pulse" : "bg-black bg-opacity-20"
+          }`}
       >
         <LiveIcon />
-        <span className="font-semibold">Live Mode</span>
+        <span className="font-semibold">{isLive ? "Live Mode" : "Go Live"}</span>
       </div>
 
       <div className="flex items-center gap-6">
         <div className="flex items-center gap-2">
           <CalendarIcon />
-          <span>3 Oct 2025, 13:55</span>
+          <span style={{ fontWeight: 500, fontSize: '14px' }}>
+            {currentTime.toLocaleString('en-IN', {
+              day: 'numeric', month: 'short', year: 'numeric',
+              hour: '2-digit', minute: '2-digit', hour12: false
+            })}
+          </span>
         </div>
         <div className="h-8 w-px bg-white/30"></div>
         <div className="relative">

@@ -26,6 +26,7 @@ export default [
     prior_complaints_same_upi: 1,
     linked_fraud_ring: "Ring_A"
   },
+
   {
     complaint_id: "CMP-MH-2002",
     complaint_timestamp: "2024-11-05 19:15:20",
@@ -53,6 +54,7 @@ export default [
     prior_complaints_same_upi: 0,
     linked_fraud_ring: "None"
   },
+
   {
     complaint_id: "CMP-MH-2003",
     complaint_timestamp: "2025-01-12 08:42:10",
@@ -80,6 +82,7 @@ export default [
     prior_complaints_same_upi: 0,
     linked_fraud_ring: "None"
   },
+
   {
     complaint_id: "CMP-MH-2004",
     complaint_timestamp: "2024-12-03 23:05:44",
@@ -107,6 +110,7 @@ export default [
     prior_complaints_same_upi: 0,
     linked_fraud_ring: "None"
   },
+
   {
     complaint_id: "CMP-MH-2005",
     complaint_timestamp: "2025-02-18 16:27:09",
@@ -134,6 +138,7 @@ export default [
     prior_complaints_same_upi: 0,
     linked_fraud_ring: "Ring_C"
   },
+
   {
     complaint_id: "CMP-MH-2006",
     complaint_timestamp: "2024-09-27 07:55:33",
@@ -161,6 +166,7 @@ export default [
     prior_complaints_same_upi: 1,
     linked_fraud_ring: "Ring_B"
   },
+
   {
     complaint_id: "CMP-MH-2007",
     complaint_timestamp: "2025-03-09 13:11:51",
@@ -188,6 +194,7 @@ export default [
     prior_complaints_same_upi: 0,
     linked_fraud_ring: "None"
   },
+
   {
     complaint_id: "CMP-MH-2008",
     complaint_timestamp: "2025-04-15 20:39:05",

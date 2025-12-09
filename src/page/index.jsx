@@ -3,30 +3,50 @@ import React, { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import "./index.css";
 // import complaintsData from "./sampleComplaints";
-import { fetchAllComplaints } from "../services/apiService";
+import { fetchHistoryComplaints } from "../services/apiService";
+import { subscribeToAllComplaints, submitComplaint } from "../services/complaintService";
 
 export default function LoginPage() {
   const navigate = useNavigate();
 
   // All complaints
   const [complaints, setComplaints] = useState([]);
+  const [historyComplaints, setHistoryComplaints] = useState([]);
   const [activeTab, setActiveTab] = useState("dashboard"); // dashboard, history_complaints, history_alerts
 
   useEffect(() => {
-    fetchAllComplaints()
+    // Subscribe to active complaints (dashboard)
+    const unsubscribe = subscribeToAllComplaints((data) => {
+      const mapped = data.map((c) => ({
+        ...c,
+        complaint_timestamp: c.time_of_complaint || c.complaint_timestamp || new Date().toISOString(),
+      }));
+      // Sort: newest first
+      mapped.sort(
+        (a, b) =>
+          new Date(b.complaint_timestamp) - new Date(a.complaint_timestamp)
+      );
+      setComplaints(mapped);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Fetch history complaints (mock for now, or could be separate collection)
+  useEffect(() => {
+    fetchHistoryComplaints()
       .then((data) => {
-        const mapped = data.map((c) => ({
+        const mappedHist = data.map((c) => ({
           ...c,
           complaint_timestamp: c.time_of_complaint || c.complaint_timestamp,
         }));
-        // Sort by newest first
-        mapped.sort(
+        mappedHist.sort(
           (a, b) =>
             new Date(b.complaint_timestamp) - new Date(a.complaint_timestamp)
         );
-        setComplaints(mapped);
+        setHistoryComplaints(mappedHist);
       })
-      .catch((err) => console.error("Failed to fetch complaints", err));
+      .catch((err) => console.error("Failed to fetch history", err));
   }, []);
 
   // Filters
@@ -34,6 +54,12 @@ export default function LoginPage() {
   const [fraudTypeFilter, setFraudTypeFilter] = useState("All");
   const [locationFilter, setLocationFilter] = useState("");
   const [idSearch, setIdSearch] = useState("");
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Modal for "View Docs"
   const [selectedComplaint, setSelectedComplaint] = useState(null);
@@ -84,7 +110,8 @@ export default function LoginPage() {
 
   // ---------- HANDLERS ----------
   const handleAction = (complaint) => {
-    navigate(`/dashboard/${complaint.complaint_id}`, {
+    // Fallback to internal ID if complaint_id is missing to avoid /undefined URL
+    navigate(`/dashboard/${complaint.complaint_id || complaint.id}`, {
       state: { complaint },
     });
   };
@@ -104,28 +131,104 @@ export default function LoginPage() {
 
   // ---------- RENDER COMPONENT ----------
   return (
-    <div className="flex h-screen bg-[#6b85a3] font-sans overflow-hidden">
-      {/* 1. LEFT SIDEBAR FILTERS (Blue/Grey Theme) */}
-      <aside className="w-64 bg-[#5c728f] text-white flex flex-col shadow-xl z-20">
-        <div className="p-6 border-b border-white/10">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-8 h-8 rounded bg-yellow-400 flex items-center justify-center text-blue-900 font-bold text-xl">
-              !
-            </div>
-            <h1 className="font-bold text-lg leading-tight">Filters</h1>
-          </div>
+    <div className="login-root">
+      {/* HEADER */}
+      <header className="login-header">
+        <div className="login-header-left">
+          <div className="logo-badge">🛡️</div>
+          <div className="app-title">Cybercrime Predictive Dashboard</div>
         </div>
 
-        <div className="p-6 flex flex-col gap-6 overflow-y-auto">
-          {/* Time Range */}
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-semibold text-gray-200">
-              Time Range
-            </label>
+        <div className="login-header-right">
+          <div className="login-header-center" style={{ marginRight: '24px' }}>
+            <span className="live-dot" />
+            <span className="live-text">Live Mode (Firebase)</span>
+          </div>
+
+          {/* TEMP: Simulation Button */}
+          <button
+            onClick={() => {
+              // Use IDs that are known to the backend (from sampleComplaints.js) 
+              // to ensure hotspots are found.
+              const validIds = [
+                "CMP-MH-2001", "CMP-MH-2002", "CMP-MH-2003",
+                "CMP-MH-2004", "CMP-MH-2005", "CMP-MH-2006",
+                "CMP-MH-2007", "CMP-MH-2008"
+              ];
+              const randomId = validIds[Math.floor(Math.random() * validIds.length)];
+
+              const sample = {
+                complaint_id: randomId, // Use valid ID for backend mapping (Hotspots will work!)
+                complaint_timestamp: new Date().toISOString().replace("T", " ").split(".")[0],
+                victim_state: "Maharashtra",
+                victim_district: "Mumbai City",
+                victim_taluka: "Dadar",
+                victim_village: "Prabhadevi",
+                victim_pincode: 400025,
+                victim_rural_urban: "Urban",
+                victim_lat: 19.0160,
+                victim_lon: 72.8300,
+                channel: "NCRP",
+                fraud_type: "UPI Scam",
+                bank_name: "HDFC",
+                reported_loss_amount: Math.floor(Math.random() * 50000) + 5000,
+                num_transactions: 3,
+                device_type: "Android",
+                is_otp_shared: 0,
+                clicked_malicious_link: 1,
+                account_age_months: 36,
+                linked_fraud_ring: "Ring_A",
+                status: "Open",
+                urgency_score: Math.random()
+              };
+              submitComplaint(sample);
+            }}
+            style={{
+              marginRight: '16px',
+              padding: '4px 8px',
+              fontSize: '12px',
+              background: '#3b82f6',
+              color: 'white',
+              borderRadius: '4px',
+              border: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            + Sim Complaint
+          </button>
+
+          <span className="header-date" style={{ fontWeight: 500, fontSize: '14px', marginRight: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '16px' }}>📅</span>
+            {currentTime.toLocaleString('en-IN', {
+              day: 'numeric', month: 'short', year: 'numeric',
+              hour: '2-digit', minute: '2-digit', hour12: false
+            })}
+          </span>
+
+          <div className="bell-badge" style={{ marginRight: '16px' }}>
+            🔔
+            <span className="bell-count">15</span>
+          </div>
+
+          <div className="user-chip">
+            <span style={{ display: 'block', fontSize: '13px', fontWeight: '600' }}>LEA Officer</span>
+            <span style={{ display: 'block', fontSize: '10px', opacity: 0.8 }}>Chennai Region</span>
+          </div>
+        </div>
+      </header>
+
+      {/* MAIN CONTENT */}
+      <div className="login-content">
+        {/* SIDEBAR FILTERS */}
+        <aside className="login-filters">
+          <h2 className="filters-title">Filters</h2>
+
+          <div className="filter-block">
+            <label className="filter-label">Time Range</label>
             <select
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value)}
-              className="bg-black/20 text-white rounded p-2 border border-white/10 outline-none focus:border-yellow-400 transition-colors"
+              className="filter-select"
             >
               <option value="24h">Last 24 Hours</option>
               <option value="7d">Last 7 Days</option>
@@ -134,316 +237,262 @@ export default function LoginPage() {
             </select>
           </div>
 
-          {/* Fraud Type */}
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-semibold text-gray-200">
-              Fraud Type
-            </label>
+          <div className="filter-block">
+            <label className="filter-label">Fraud Type</label>
             <select
               value={fraudTypeFilter}
               onChange={(e) => setFraudTypeFilter(e.target.value)}
-              className="bg-black/20 text-white rounded p-2 border border-white/10 outline-none focus:border-yellow-400 transition-colors"
+              className="filter-select"
             >
               <option value="All">All Types</option>
+              <option value="KYC Update Scam">KYC Update Scam</option>
+              <option value="Card Skimming">Card Skimming</option>
               <option value="OTP Fraud">OTP Fraud</option>
-              <option value="UPI Phishing">UPI Phishing</option>
-              <option value="ATM Skimming">ATM Skimming</option>
-              <option value="Loan App Fraud">Loan App Fraud</option>
-              <option value="Debit Card Fraud">Debit Card Fraud</option>
-              <option value="Impersonation / Digital Arrest">
-                Impersonation / Digital Arrest
-              </option>
+              <option value="UPI Scam">UPI Scam</option>
+              <option value="Loan App Scam">Loan App Scam</option>
             </select>
           </div>
 
-          {/* Location */}
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-semibold text-gray-200">
-              Location
-            </label>
+          <div className="filter-block">
+            <label className="filter-label">Location</label>
             <input
               type="text"
               placeholder="District / City"
               value={locationFilter}
               onChange={(e) => setLocationFilter(e.target.value)}
-              className="bg-black/20 text-white rounded p-2 border border-white/10 outline-none focus:border-yellow-400 transition-colors placeholder-gray-400"
+              className="filter-input"
             />
           </div>
 
-          {/* Complaint ID */}
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-semibold text-gray-200">
-              Complaint ID
-            </label>
+          <div className="filter-block">
+            <label className="filter-label">Complaint ID</label>
             <input
               type="text"
               placeholder="Search by ID"
               value={idSearch}
               onChange={(e) => setIdSearch(e.target.value)}
-              className="bg-black/20 text-white rounded p-2 border border-white/10 outline-none focus:border-yellow-400 transition-colors placeholder-gray-400"
+              className="filter-input"
             />
           </div>
-        </div>
-      </aside>
 
-      {/* 2. MAIN CONTENT AREA */}
-      <div className="flex-1 flex flex-col bg-[#7992b1] relative">
-        {/* TOP HEADER / NAV */}
-        <header className="bg-[#6b85a3] text-white p-4 shadow-md z-10">
-          <div className="flex justify-between items-center mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-yellow-400 to-orange-500 flex items-center justify-center shadow-lg">
-                <span className="text-xl">🛡️</span>
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold tracking-wide text-white drop-shadow-md">
-                  Cybercrime Predictive Dashboard
-                </h1>
-                <div className="flex items-center gap-2">
-                  <span className="bg-green-500/20 text-green-300 text-xs px-2 py-0.5 rounded border border-green-500/30 animate-pulse">
-                    ● Live Mode
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2 text-sm text-gray-200">
-                <span>🗓️ 2 Oct 2025 , 11.59</span>
-              </div>
-              <div className="relative cursor-pointer">
-                <span className="text-xl">🔔</span>
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-[10px] flex items-center justify-center rounded-full font-bold">
-                  15
-                </span>
-              </div>
-              <div className="flex items-center gap-3 pl-4 border-l border-white/20">
-                <div className="text-right hidden md:block">
-                  <div className="font-bold text-sm">LEA Officer</div>
-                  <div className="text-xs text-gray-300">Chennai Region</div>
-                </div>
-                <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold border-2 border-white/30">
-                  👤
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* TABS */}
-          <div className="flex gap-8 mt-2 border-b border-white/10 px-4">
+          <div style={{ paddingTop: '10px' }}>
             <button
-              onClick={() => setActiveTab("dashboard")}
-              className={`pb-3 px-4 text-sm font-bold uppercase tracking-wider transition-all relative ${activeTab === "dashboard"
-                  ? "text-white"
-                  : "text-gray-400 hover:text-gray-200"
-                }`}
+              className={`sidebar-nav-btn ${activeTab === "history_complaints" ? "active" : ""}`}
+              onClick={() => setActiveTab(activeTab === "history_complaints" ? "dashboard" : "history_complaints")}
             >
-              Dashboard
-              {activeTab === "dashboard" && (
-                <div className="absolute bottom-0 left-0 w-full h-1 bg-red-400 rounded-t-md shadow-[0_0_10px_rgba(248,113,113,0.5)]" />
-              )}
-            </button>
-
-            <button
-              onClick={() => setActiveTab("history_complaints")}
-              className={`pb-3 px-4 text-sm font-bold uppercase tracking-wider transition-all relative ${activeTab === "history_complaints"
-                  ? "text-white"
-                  : "text-gray-400 hover:text-gray-200"
-                }`}
-            >
-              History of Complaints
-              {activeTab === "history_complaints" && (
-                <div className="absolute bottom-0 left-0 w-full h-1 bg-blue-400 rounded-t-md shadow-[0_0_10px_rgba(96,165,250,0.5)]" />
-              )}
-            </button>
-
-            <button
-              onClick={() => setActiveTab("history_alerts")}
-              className={`pb-3 px-4 text-sm font-bold uppercase tracking-wider transition-all relative ${activeTab === "history_alerts"
-                  ? "text-white"
-                  : "text-gray-400 hover:text-gray-200"
-                }`}
-            >
-              History of Alerts
-              {activeTab === "history_alerts" && (
-                <div className="absolute bottom-0 left-0 w-full h-1 bg-yellow-400 rounded-t-md shadow-[0_0_10px_rgba(250,204,21,0.5)]" />
-              )}
+              {activeTab === "history_complaints" ? "Dashboard" : "History of Complaints"}
             </button>
           </div>
-        </header>
+        </aside>
 
-        {/* TAB CONTENTS */}
-        <div className="flex-1 overflow-y-auto p-6 relative">
-          {/* TAB 1: DASHBOARD (Active Complaints) */}
+        {/* RIGHT SIDE – TABS & LIST */}
+        <main className="login-main">
+          {/* TABS HEADER REMOVED - Using Sidebar Nav */}
+
+          {/* TAB CONTENT: DASHBOARD */}
           {activeTab === "dashboard" && (
-            <div className="flex flex-col gap-4 max-w-5xl mx-auto">
+            <div className="complaints-list">
               {filteredComplaints.length === 0 ? (
-                <div className="text-center text-white/50 mt-12 text-lg">
-                  No complaints found matching filters.
+                <div className="no-results">
+                  No complaints match the current filters.
                 </div>
               ) : (
                 filteredComplaints.map((c) => (
-                  <div
-                    key={c.complaint_id}
-                    className="bg-[#8aa2c0]/40 backdrop-blur-sm border border-white/20 rounded-lg p-4 shadow-lg hover:shadow-xl transition-shadow flex flex-col gap-3 group"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="flex gap-3">
-                        <div className="bg-white/10 p-2 rounded text-2xl h-fit">
-                          🆔
+                  <article className="complaint-card" key={c.complaint_id}>
+                    <div className="complaint-card-top">
+                      <div className="complaint-id-chip">
+                        <div className="flex items-center">
+                          <span className="id-text">{c.complaint_id}</span>
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-bold text-white text-lg">
-                              {c.complaint_id}
-                            </span>
-                            {c.urgency_score > 0.8 && (
-                              <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">CRITICAL</span>
-                            )}
-                          </div>
-                          <div className="text-white/90 font-medium">
-                            {c.fraud_type} detected
-                          </div>
-                        </div>
+                        <div className="complaint-subtitle">{c.fraud_type} detected</div>
                       </div>
-
-                      <div className="flex gap-2 opacity-90 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => handleViewDocs(c)}
-                          className="bg-gray-200 hover:bg-white text-gray-800 text-xs font-bold py-1.5 px-3 rounded shadow"
-                        >
+                      <div className="complaint-card-actions">
+                        <button className="btn-secondary" onClick={() => handleViewDocs(c)}>
                           View Docs
                         </button>
-                        <button
-                          onClick={() => handleAction(c)}
-                          className="bg-blue-500 hover:bg-blue-400 text-white text-xs font-bold py-1.5 px-4 rounded shadow"
-                        >
+                        <button className="btn-primary" onClick={() => handleAction(c)}>
                           Action
                         </button>
-                        <button
-                          onClick={() => handleReject(c)}
-                          className="bg-red-500 hover:bg-red-400 text-white text-xs font-bold py-1.5 px-3 rounded shadow"
-                        >
+                        <button className="btn-danger" onClick={() => handleReject(c)}>
                           Reject
                         </button>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-4 text-sm text-gray-200 mt-2 bg-black/10 p-3 rounded-md border border-white/5">
-                      <div className="flex items-center gap-2">
-                        <span>🕒</span>
-                        {new Date(
-                          c.complaint_timestamp.replace(" ", "T")
-                        ).toLocaleTimeString("en-IN", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                    <div className="complaint-meta-grid">
+                      <div className="meta-item">
+                        <span className="meta-label">Time</span>
+                        <span className="meta-value">
+                          {new Date(c.complaint_timestamp.replace(" ", "T")).toLocaleTimeString("en-IN", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span>📍</span>
-                        {c.victim_district} - {c.victim_taluka}
+                      <div className="meta-item">
+                        <span className="meta-label">Location</span>
+                        <span className="meta-value">
+                          {c.victim_district} – {c.victim_taluka}
+                        </span>
                       </div>
-                      <div className="flex items-center gap-2 font-bold text-white">
-                        <span>💵</span>₹{c.reported_loss_amount}
+                      <div className="meta-item">
+                        <span className="meta-label">Reported Amount</span>
+                        <span className="meta-value amount-text">
+                          ₹{new Intl.NumberFormat("en-IN").format(c.reported_loss_amount)}
+                        </span>
                       </div>
                     </div>
-                  </div>
+                  </article>
                 ))
               )}
             </div>
           )}
 
-          {/* TAB 2: HISTORY OF COMPLAINTS (Read Only / Past) */}
+          {/* TAB CONTENT: HISTORY OF COMPLAINTS */}
+          {/* TAB CONTENT: HISTORY OF COMPLAINTS */}
           {activeTab === "history_complaints" && (
-            <div className="flex flex-col gap-4 max-w-5xl mx-auto">
-              <div className="bg-white/10 p-4 rounded text-center text-white mb-4">
-                Showing archive of processed complaints.
+            <div className="complaints-list">
+              <div className="no-results" style={{ background: 'rgba(255,255,255,0.1)' }}>
+                Archive View - Read Only (Filtered by Search/Type)
               </div>
-              {filteredComplaints.map((c) => (
-                <div
-                  key={c.complaint_id + "_hist"}
-                  className="bg-gray-600/40 border border-white/10 rounded-lg p-4 flex flex-col gap-2 opacity-75 hover:opacity-100 transition-opacity"
-                >
-                  <div className="flex justify-between">
-                    <span className="font-bold text-gray-300">{c.complaint_id}</span>
-                    <span className="text-green-400 text-xs font-bold border border-green-400/30 px-2 py-0.5 rounded">RESOLVED</span>
+              {/* Note: We currently apply client-side filters to history data too using the same filter states */}
+              {(historyComplaints.filter(c => {
+                // fraud type
+                if (fraudTypeFilter !== "All" && c.fraud_type !== fraudTypeFilter) return false;
+                // location
+                if (locationFilter.trim() !== "") {
+                  const loc = (c.victim_district + " " + c.victim_taluka + " " + c.victim_state).toLowerCase();
+                  if (!loc.includes(locationFilter.toLowerCase())) return false;
+                }
+                // id search
+                if (idSearch.trim() !== "" && !c.complaint_id.toLowerCase().includes(idSearch.toLowerCase())) return false;
+
+                return true;
+              })).map((c) => (
+                <article className="complaint-card" key={c.complaint_id + "_hist"} style={{ opacity: 0.8 }}>
+                  <div className="complaint-card-top">
+                    <div className="complaint-id-chip">
+                      <span className="id-text" style={{ color: '#cbd5e1' }}>{c.complaint_id}</span>
+                    </div>
+                    <div style={{ marginLeft: 'auto' }}>
+                      <span style={{
+                        background: 'rgba(16, 185, 129, 0.2)',
+                        color: '#34d399',
+                        padding: '4px 10px',
+                        borderRadius: '999px',
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px'
+                      }}>
+                        {c.status || "Resolved"}
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-sm text-gray-200">{c.fraud_type} - {c.bank_name}</div>
-                  <div className="text-xs text-gray-400">
-                    {c.victim_district}, {c.victim_state} • ₹{c.reported_loss_amount}
+                  <div className="complaint-meta-grid" style={{ marginTop: '0', paddingTop: '8px', border: 'none' }}>
+                    <div className="meta-item">
+                      <span className="meta-value">{c.victim_district}</span>
+                    </div>
+                    <div className="meta-item">
+                      <span className="meta-value">₹{new Intl.NumberFormat("en-IN").format(c.reported_loss_amount)}</span>
+                    </div>
+                    <div className="meta-item">
+                      <span className="meta-value">{c.fraud_type}</span>
+                    </div>
                   </div>
-                </div>
+                </article>
               ))}
             </div>
           )}
 
-          {/* TAB 3: HISTORY OF ALERTS (Placeholder / Mock) */}
+          {/* TAB CONTENT: HISTORY OF ALERTS (High Urgency Items) */}
           {activeTab === "history_alerts" && (
-            <div className="flex flex-col gap-4 max-w-5xl mx-auto text-white">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* Mock Alert History Cards */}
-                {[1, 2, 3, 4, 5, 6].map(i => (
-                  <div key={i} className="bg-gradient-to-br from-gray-800 to-gray-900 border border-white/10 p-4 rounded-lg shadow-lg">
-                    <div className="flex justify-between items-center mb-3">
-                      <span className="bg-red-500/20 text-red-300 text-xs px-2 py-1 rounded border border-red-500/30">CRITICAL HOTSPOT</span>
-                      <span className="text-xs text-gray-400">2 days ago</span>
-                    </div>
-                    <h3 className="font-bold text-lg mb-1">ATM #{2000 + i} - Mumbai</h3>
-                    <p className="text-sm text-gray-400 mb-4">High concentration of skimming reports in Andheri East.</p>
-                    <div className="flex justify-between items-center border-t border-white/10 pt-3">
-                      <span className="text-xs text-gray-500">Risk Score: 98%</span>
-                      <button className="text-blue-400 text-sm hover:underline">View Report</button>
-                    </div>
-                  </div>
-                ))}
+            <div className="complaints-list">
+              <div className="no-results" style={{ background: 'rgba(255,255,255,0.1)' }}>
+                High Urgency / Alert History
               </div>
+              {filteredComplaints.filter(c => c.urgency_score > 0.6).length === 0 ? (
+                <div className="no-results">No high urgency alerts found over 60%.</div>
+              ) : (
+                filteredComplaints.filter(c => c.urgency_score > 0.6).map((c) => (
+                  <article className="complaint-card" key={c.complaint_id + "_alert"} style={{ borderLeft: '4px solid #ef4444' }}>
+                    <div className="complaint-card-top">
+                      <div className="complaint-id-chip">
+                        <div className="flex items-center">
+                          <span className="id-text">ALERT: {c.complaint_id}</span>
+                          <span className="risk-badge" style={{ background: '#f59e0b' }}>SCORE: {(c.urgency_score * 100).toFixed(0)}</span>
+                        </div>
+                        <div className="complaint-subtitle">Hotspot Analysis Recommended</div>
+                      </div>
+                      <div className="complaint-card-actions">
+                        <button className="btn-primary" onClick={() => handleAction(c)}>
+                          View Hotspots
+                        </button>
+                      </div>
+                    </div>
+                    <div className="complaint-meta-grid">
+                      <div className="meta-item">
+                        <div className="meta-label" style={{ color: '#fca5a5' }}>Alert Trigger</div>
+                        <div className="meta-value">High Urgency Score</div>
+                      </div>
+                      <div className="meta-item">
+                        <div className="meta-label">Location</div>
+                        <div className="meta-value">{c.victim_district}</div>
+                      </div>
+                      <div className="meta-item">
+                        <div className="meta-label">Time</div>
+                        <div className="meta-value">{c.complaint_timestamp}</div>
+                      </div>
+                    </div>
+                  </article>
+                ))
+              )}
             </div>
           )}
-        </div>
-      </div>
+        </main>
+      </div >
 
       {/* VIEW DOCS MODAL */}
-      {selectedComplaint && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm">
-          <div className="bg-[#1e293b] text-white p-6 rounded-lg w-full max-w-md shadow-2xl border border-white/10">
-            <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-2">
-              <h3 className="text-xl font-bold">Complaint {selectedComplaint.complaint_id}</h3>
-              <button onClick={closeDocs} className="text-gray-400 hover:text-white text-xl">
-                ✕
-              </button>
-            </div>
-            <div className="space-y-3 text-sm text-gray-300">
-              <p>
-                <strong className="text-gray-100">Fraud Type:</strong> {selectedComplaint.fraud_type}
-              </p>
-              <p>
-                <strong className="text-gray-100">Bank:</strong> {selectedComplaint.bank_name}
-              </p>
-              <p>
-                <strong className="text-gray-100">Amount:</strong> ₹
-                {new Intl.NumberFormat("en-IN").format(
-                  selectedComplaint.reported_loss_amount
-                )}
-              </p>
-              <p>
-                <strong className="text-gray-100">Location:</strong>{" "}
-                {selectedComplaint.victim_village}, {selectedComplaint.victim_taluka},{" "}
-                {selectedComplaint.victim_district}
-              </p>
-              <p>
-                <strong className="text-gray-100">Channel:</strong> {selectedComplaint.channel}
-              </p>
-              <p>
-                <strong className="text-gray-100">Device:</strong> {selectedComplaint.device_type}
-              </p>
-              <p>
-                <strong className="text-gray-100">Timestamp:</strong>{" "}
-                {selectedComplaint.complaint_timestamp}
-              </p>
+      {
+        selectedComplaint && (
+          <div className="modal-backdrop">
+            <div className="modal">
+              <div className="modal-header">
+                <h3>Complaint Details – {selectedComplaint.complaint_id}</h3>
+                <button onClick={closeDocs} className="modal-close">
+                  ✕
+                </button>
+              </div>
+              <div className="modal-body">
+                <div className="modal-row">
+                  <span className="modal-label">Fraud Type</span>
+                  <span className="modal-val">{selectedComplaint.fraud_type}</span>
+                </div>
+                <div className="modal-row">
+                  <span className="modal-label">Bank Name</span>
+                  <span className="modal-val">{selectedComplaint.bank_name}</span>
+                </div>
+                <div className="modal-row">
+                  <span className="modal-label">Amount</span>
+                  <span className="modal-val">₹{new Intl.NumberFormat("en-IN").format(selectedComplaint.reported_loss_amount)}</span>
+                </div>
+                <div className="modal-row">
+                  <span className="modal-label">Location</span>
+                  <span className="modal-val">{selectedComplaint.victim_district}, {selectedComplaint.victim_taluka}</span>
+                </div>
+                <div className="modal-row">
+                  <span className="modal-label">Channel</span>
+                  <span className="modal-val">{selectedComplaint.channel}</span>
+                </div>
+                <div className="modal-row">
+                  <span className="modal-label">Time</span>
+                  <span className="modal-val">{selectedComplaint.complaint_timestamp}</span>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 }

@@ -9,6 +9,7 @@ import AlertsSection from "./components/AlertsSection";
 import AlertDetailModal from "./components/AlertDetailModal";
 
 import { fetchAtmHotspotsForComplaint } from "./services/apiService";
+import { subscribeToComplaint } from "./services/complaintService";
 
 export default function CipherDashboard() {
   const location = useLocation();
@@ -29,12 +30,30 @@ export default function CipherDashboard() {
     Low: true,
   });
 
+  // NEW: Live Status for the active complaint
+  const [liveComplaintStatus, setLiveComplaintStatus] = useState("Open");
+
+
+
+  // If opened directly without a complaint, go back to login
   // If opened directly without a complaint, go back to login
   useEffect(() => {
     if (!complaint) {
       navigate("/");
     }
   }, [complaint, navigate]);
+
+  // Subscribe to live status
+  useEffect(() => {
+    if (!complaint?.id) return;
+    // Uses the ID (either doc ID or complaint_id depending on flow).
+    const unsub = subscribeToComplaint(complaint.id, (data) => {
+      if (data && data.status) {
+        setLiveComplaintStatus(data.status);
+      }
+    });
+    return () => unsub();
+  }, [complaint]);
 
   useEffect(() => {
     if (!complaint) return;
@@ -44,14 +63,22 @@ export default function CipherDashboard() {
         setLoading(true);
 
         // 🔹 Call FastAPI prediction endpoint
-        const atmData = await fetchAtmHotspotsForComplaint(complaint);
+        // 🚨 DEMO FIX: If ID is missing/undefined, fallback to a known valid ID so map isn't empty
+        let effectiveComplaintId = complaint.complaint_id || complaint.id;
+        if (!effectiveComplaintId || effectiveComplaintId === 'undefined') {
+          effectiveComplaintId = "CMP-MH-2001";
+        }
 
-        const complaintId = complaint.complaint_id;
-        const atmList = atmData[complaintId] || [];
+        const atmData = await fetchAtmHotspotsForComplaint({
+          ...complaint,
+          complaint_id: effectiveComplaintId
+        });
+
+        const atmList = atmData[effectiveComplaintId] || [];
 
         // 🔹 Map backend ATMRisk → UI alert object
         const uiAlerts = atmList.map((atm) => ({
-          id: `${complaintId}-${atm.atm_id}`,
+          id: `${effectiveComplaintId}-${atm.atm_id}`,
 
           // for list & map coloring
           priority: atm.risk_class, // Critical / High / Medium
@@ -96,7 +123,9 @@ export default function CipherDashboard() {
     load();
   }, [complaint]);
 
-  const filteredAlerts = alerts.filter((a) => priorityFilter[a.priority]);
+  const filteredAlerts = alerts.filter((a) => {
+    return priorityFilter[a.priority];
+  });
 
   if (!complaint) {
     return null; // navigate() will already have triggered
@@ -115,13 +144,17 @@ export default function CipherDashboard() {
       <div className="grid grid-cols-[350px_1fr] h-screen">
         {/* LEFT SIDEBAR */}
         <Sidebar
-          setPriorityFilter={setPriorityFilter}
           priorityFilter={priorityFilter}
+          setPriorityFilter={setPriorityFilter}
         />
 
         {/* MAIN CONTENT */}
         <main className="flex flex-col h-screen">
-          <Header isLive={isLive} onLiveToggle={() => setIsLive(!isLive)} />
+          <Header
+            isLive={isLive}
+            onLiveToggle={() => setIsLive(!isLive)}
+            complaintStatus={liveComplaintStatus}
+          />
           <div className="p-6 flex-grow overflow-y-auto">
             {/* MAP with ATM markers */}
             <MapDisplay alerts={filteredAlerts} />

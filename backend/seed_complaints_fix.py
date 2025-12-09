@@ -3,7 +3,7 @@ from datetime import datetime
 from backend.database import SessionLocal, engine, Base
 from backend.models import Complaint
 
-# Hardcoded data from src/page/sampleComplaints.js
+# Hardcoded data from user request (Reduced to 8 items)
 complaints_data = [
   {
     "complaint_id": "CMP-MH-2001",
