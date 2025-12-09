@@ -274,6 +274,82 @@ def get_history_db():
     finally:
         db.close()
 
+@app.post("/api/complaints/{complaint_id}/archive")
+def archive_complaint_to_history(
+    complaint_id: str,
+    db: Session = Depends(get_db),
+    history_db: Session = Depends(get_history_db)
+):
+    """
+    Archive a complaint from active complaints to history.
+    Used when forwarding to bank.
+    """
+    try:
+        # 1. Fetch the complaint from active DB
+        active_complaint = db.query(DBComplaint).filter(
+            DBComplaint.complaint_id == complaint_id
+        ).first()
+        
+        if not active_complaint:
+            raise HTTPException(status_code=404, detail="Complaint not found")
+        
+        # 2. Check if already in history
+        existing_history = history_db.query(HistoryComplaint).filter(
+            HistoryComplaint.complaint_id == complaint_id
+        ).first()
+        
+        if existing_history:
+            # Already archived, just return success
+            return {"message": "Complaint already in history", "complaint_id": complaint_id}
+        
+        # 3. Create history record
+        history_data = {
+            "complaint_id": active_complaint.complaint_id,
+            "complaint_timestamp": active_complaint.complaint_timestamp,
+            "victim_state": active_complaint.victim_state,
+            "victim_district": active_complaint.victim_district,
+            "victim_taluka": active_complaint.victim_taluka,
+            "victim_village": active_complaint.victim_village,
+            "victim_pincode": active_complaint.victim_pincode,
+            "victim_rural_urban": active_complaint.victim_rural_urban,
+            "victim_lat": active_complaint.victim_lat,
+            "victim_lon": active_complaint.victim_lon,
+            "channel": active_complaint.channel,
+            "fraud_type": active_complaint.fraud_type,
+            "bank_name": active_complaint.bank_name,
+            "reported_loss_amount": active_complaint.reported_loss_amount,
+            "num_transactions": active_complaint.num_transactions,
+            "device_type": active_complaint.device_type,
+            "urgency_score": active_complaint.urgency_score,
+            "account_age_months": active_complaint.account_age_months,
+            "prior_complaints_same_upi": active_complaint.prior_complaints_same_upi,
+            "linked_fraud_ring": active_complaint.linked_fraud_ring,
+            "status": "Forwarded to Bank",
+            "resolution_date": datetime.now(),
+            "resolution_notes": "Automatically archived after forwarding to bank"
+        }
+        
+        history_complaint = HistoryComplaint(**history_data)
+        history_db.add(history_complaint)
+        history_db.commit()
+        
+        # 4. Delete from active complaints
+        db.delete(active_complaint)
+        db.commit()
+        
+        return {
+            "message": "Complaint archived successfully",
+            "complaint_id": complaint_id,
+            "status": "Forwarded to Bank"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        print(f"Archive Error: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/history")
 def get_history_complaints(db: Session = Depends(get_history_db)):
     complaints = db.query(HistoryComplaint).all()

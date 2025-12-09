@@ -49,6 +49,30 @@ export const forwardAlertToBank = async (alertData) => {
         );
 
         console.log("Alert forwarded to bank with ID:", docRef.id);
+
+        // Archive the complaint to history
+        const complaintId = alertData.complaintIds?.[0] || alertData.id;
+        if (complaintId) {
+            try {
+                const archiveResponse = await fetch(
+                    `http://127.0.0.1:8000/api/complaints/${complaintId}/archive`,
+                    {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                    }
+                );
+
+                if (archiveResponse.ok) {
+                    console.log("Complaint archived to history:", complaintId);
+                } else {
+                    console.warn("Failed to archive complaint:", await archiveResponse.text());
+                }
+            } catch (archiveError) {
+                console.error("Error archiving complaint:", archiveError);
+                // Don't throw - forwarding to bank succeeded, archiving is secondary
+            }
+        }
+
         return docRef.id;
     } catch (error) {
         console.error("Error forwarding alert to bank:", error);
